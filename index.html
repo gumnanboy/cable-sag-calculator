@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เครื่องคำนวณระยะหย่อนสายไฟฟ้า v5.2 (UTS Calculation)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        :root {
+            --primary-text: #2c3e50;
+            --secondary-text: #34495e;
+            --background-color: #f4f7f6;
+            --container-bg: #ffffff;
+            --card-bg-pole: #e3f2fd;
+            --card-border-pole: #bbdefb;
+            --card-bg-temp: #fff3e0;
+            --card-border-temp: #ffe0b2;
+            --card-bg-cable: #e8f5e9;
+            --card-border-cable: #c8e6c9;
+            --card-bg-wind: #f3e5f5;
+            --card-border-wind: #e1bee7;
+            --card-bg-clearance: #ede7f6;
+            --card-border-clearance: #d1c4e9;
+            --button-primary-bg: #4CAF50;
+            --button-primary-hover: #45a049;
+            --status-pass-bg: #d4edda;
+            --status-pass-text: #155724;
+            --status-fail-bg: #f8d7da;
+            --status-fail-text: #721c24;
+            --error-border-color: #e53e3e;
+        }
+
+        body {
+            font-family: 'Sarabun', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 1rem auto;
+            padding: 1rem;
+            background-color: var(--background-color);
+            color: var(--primary-text);
+        }
+        .calculator-container {
+            background-color: var(--container-bg);
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        h1 {
+            color: var(--primary-text);
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.75rem;
+        }
+        h2, h3, h4 {
+            color: var(--secondary-text);
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .toggle-button {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.85em;
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Sarabun', sans-serif;
+        }
+        .toggle-button:hover {
+            background-color: #dee2e6;
+        }
+        .cable-specs, .pole-info, .temp-info, .wind-info, .clearance-info {
+            padding: 1.25rem;
+            border-radius: 8px;
+            height: 100%;
+        }
+        .pole-info { background-color: var(--card-bg-pole); border: 1px solid var(--card-border-pole); }
+        .temp-info { background-color: var(--card-bg-temp); border: 1px solid var(--card-border-temp); }
+        .wind-info { background-color: var(--card-bg-wind); border: 1px solid var(--card-border-wind); }
+        .cable-specs { background-color: var(--card-bg-cable); border: 1px solid var(--card-border-cable); }
+        .clearance-info { background-color: var(--card-bg-clearance); border: 1px solid var(--card-border-clearance); }
+        
+        .layout-container { display: flex; flex-direction: column; gap: 1.5rem; }
+        .top-row { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+        .top-column { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 1.5rem; }
+        .bottom-row { width: 100%; }
+
+        .input-group { margin-bottom: 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+        label { display: inline-block; width: 260px; font-weight: 600; color: #555; flex-shrink: 0; text-align: right; padding-right: 1rem; }
+        label.checkbox-label { width: auto; text-align: left; font-weight: normal; padding: 0; }
+        .input-wrapper { display: flex; flex-grow: 1; align-items: center; gap: 0.5rem; }
+        input[type="number"], select { flex-grow: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; box-sizing: border-box; }
+        
+        .input-error {
+            border-color: var(--error-border-color);
+            box-shadow: 0 0 0 1px var(--error-border-color);
+        }
+
+        .cable-specs input[type="number"] { max-width: 132px; }
+        #cableType, #bundleCount { max-width: 270px; }
+        .pole-info input[type="number"], .temp-info input[type="number"], .wind-info input[type="number"], .clearance-info input[type="number"] { max-width: 100px; }
+        
+        input[readonly] { background-color: #f0f0f0; cursor: default; }
+        .unit { color: #777; font-size: 0.9em; flex-shrink: 0; text-align: left; }
+        #calculateButton { display: block; width: 100%; max-width: 280px; margin: 2rem auto 0; padding: 0.8rem 1.5rem; background-color: var(--button-primary-bg); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1em; font-weight: 600; transition: background-color 0.2s; }
+        #calculateButton:hover { background-color: var(--button-primary-hover); }
+        
+        #loadButton { display: none; }
+        #results { margin-top: 1rem; padding: 1.25rem; border: 1px solid #d4edda; border-radius: 8px; background-color: #dff0d8; color: #155724; line-height: 1.7; }
+        #results p, #results table { margin-bottom: 1rem; }
+        #results p strong { color: #0056b3; }
+        .results-section { margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #c8e6c9; }
+        .results-section:last-child { border-bottom: none; }
+        .warning-text { color: #d9534f; font-weight: bold; }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            font-size: 0.875em;
+            display: inline-block;
+        }
+        .status-pass { background-color: var(--status-pass-bg); color: var(--status-pass-text); }
+        .status-fail { background-color: var(--status-fail-bg); color: var(--status-fail-text); }
+        .chart-container { position: relative; height: 400px; width: 100%; margin-top: 2rem; background-color: var(--container-bg); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 1rem; }
+        canvas { width: 100% !important; height: 100% !important; }
+
+        #spanList { list-style-type: decimal; padding-left: 1.5rem; max-height: 150px; overflow-y: auto; }
+        #spanList li { margin-bottom: 0.25rem; }
+
+        .info-tooltip-container { position: relative; display: inline-flex; align-items: center; margin-left: 0.5rem; }
+        .info-icon { cursor: pointer; color: #3b82f6; border: 1.5px solid #3b82f6; border-radius: 50%; width: 1.25rem; height: 1.25rem; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
+        .info-tooltip-container .tooltip-text { visibility: hidden; width: 280px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 10; bottom: 150%; left: 50%; margin-left: -140px; opacity: 0; transition: opacity 0.3s; font-weight: normal; font-size: 0.9em; }
+        .info-tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+
+        @media (max-width: 768px) {
+            body { padding: 0.5rem; margin: 0; }
+            .calculator-container { padding: 1rem; }
+            h1 { font-size: 1.5rem; }
+            h2, h3 { font-size: 1.15rem; }
+            .top-row { flex-direction: column; }
+            .input-group { flex-direction: column; align-items: flex-start; }
+            label { width: 100%; text-align: left; padding-right: 0; margin-bottom: 0.25rem; }
+            .input-wrapper { width: 100%; }
+            input[type="number"], select { max-width: none; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="calculator-container">
+        <h1>เครื่องคำนวณระยะหย่อนสายไฟฟ้า</h1>
+
+        <div class="layout-container">
+            <div class="top-row">
+                <div class="top-column">
+                    <div class="pole-info">
+                        <h2>ข้อมูลเสาไฟฟ้าและช่วงเสา</h2>
+                        <div class="input-group">
+                            <label>รูปแบบการคำนวณ</label>
+                            <div class="input-wrapper" style="gap: 1rem;">
+                                <input type="radio" id="modeSingleSpan" name="calcMode" value="single" checked>
+                                <label for="modeSingleSpan" class="checkbox-label">ระยะห่างระหว่างเสา</label>
+                                <input type="radio" id="modeRulingSpan" name="calcMode" value="ruling">
+                                <label for="modeRulingSpan" class="checkbox-label">Ruling Span</label>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>สมการที่ใช้คำนวณ</label>
+                            <div class="input-wrapper" style="gap: 1rem;">
+                                <input type="radio" id="methodParabolic" name="equationMethod" value="parabolic" checked>
+                                <label for="methodParabolic" class="checkbox-label">Parabolic</label>
+                                <input type="radio" id="methodCatenary" name="equationMethod" value="catenary">
+                                <label for="methodCatenary" class="checkbox-label">Catenary</label>
+                            </div>
+                        </div>
+                        <hr class="my-4">
+                        <div id="singleSpanSection">
+                             <div class="input-group">
+                                <label for="spanLength">ระยะห่างระหว่างเสา (L)</label>
+                                 <div class="input-wrapper">
+                                    <input type="number" id="spanLength" value="390" min="0">
+                                    <span class="unit">เมตร</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="rulingSpanSection" style="display: none;">
+                            <div class="input-group">
+                                <label for="newSpanInput">เพิ่มช่วงเสา (เมตร)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="newSpanInput" placeholder="เช่น 300">
+                                    <button id="addSpanBtn" class="toggle-button" style="background-color: #2196F3; color: white;">เพิ่ม</button>
+                                </div>
+                            </div>
+                            <div id="spanListContainer" class="mb-4">
+                                <ul id="spanList"></ul>
+                                <button id="clearSpansBtn" class="toggle-button mt-2" style="background-color: #f44336; color: white; display: none;">ล้างทั้งหมด</button>
+                            </div>
+                            <div class="input-group">
+                                <label for="rulingSpanDisplay">Ruling Span (คำนวณ)</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="rulingSpanDisplay" readonly class="bg-gray-200">
+                                    <span class="unit">เมตร</span>
+                                </div>
+                            </div>
+                            <div id="rulingSpanInfo" class="text-sm text-gray-600 mt-4 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                ⓘ การตรวจสอบระยะปลอดภัยและน้ำหนักบนเสา จะใช้ได้ในโหมด 'ระยะห่างระหว่างเสา' เท่านั้น
+                            </div>
+                        </div>
+                         <div class="input-group">
+                            <label for="height1">ความสูงจุดแขวนสายที 1</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="height1" value="50" min="0">
+                                <span class="unit">เมตร</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="height2">ความสูงจุดแขวนสายที่ 2</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="height2" value="50" min="0">
+                                <span class="unit">เมตร</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="clearance-info">
+                        <h2>ตรวจสอบระยะปลอดภัยและสิ่งกีดขวาง</h2>
+                        <div class="input-group">
+                            <label for="requiredClearance">ระยะปลอดภัยขั้นต่ำ</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="requiredClearance" value="12" min="0">
+                                <span class="unit">เมตร</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="enableObstacleCheck">ตรวจสอบสิ่งกีดขวาง</label>
+                            <div class="input-wrapper">
+                                <input type="checkbox" id="enableObstacleCheck" checked>
+                            </div>
+                        </div>
+                        <div id="obstacleInputsContainer">
+                            <div class="input-group">
+                                <label for="obstaclePosition">ตำแหน่งสิ่งกีดขวาง (จากเสา 1)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="obstaclePosition" value="195" min="0">
+                                    <span class="unit">เมตร</span>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label for="obstacleHeight">ความสูงสิ่งกีดขวาง</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="obstacleHeight" value="40" min="0">
+                                    <span class="unit">เมตร</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="top-column">
+                     <div class="temp-info">
+                        <h2>สภาวะอุณหภูมิและการติดตั้ง</h2>
+
+                        <div class="input-group">
+                            <label>วิธีการคำนวณ</label>
+                            <div class="input-wrapper" style="gap: 1rem;">
+                                <input type="radio" id="calcMethodInitial" name="calculationMethod" value="initial" checked>
+                                <label for="calcMethodInitial" class="checkbox-label">จากสภาวะเริ่มต้น</label>
+                                <input type="radio" id="calcMethodSetTension" name="calculationMethod" value="setTension">
+                                <label for="calcMethodSetTension" class="checkbox-label">กำหนดแรงดึง</label>
+                                <input type="radio" id="calcMethodUTS" name="calculationMethod" value="uts">
+                                <label for="calcMethodUTS" class="checkbox-label">จาก %UTS</label>
+                            </div>
+                        </div>
+                        <hr class="my-4">
+
+                        <div id="initialConditionSection">
+                            <div class="input-group">
+                                <label for="initialTemperature">อุณหภูมิอ้างอิง (T_ref)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="initialTemperature" value="27" step="1">
+                                    <span class="unit">°C</span>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label for="sagAtInitialTemp" id="sagRefLabel">ระยะหย่อน ณ T_ref</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="sagAtInitialTemp" value="10.62" step="0.01" min="0">
+                                    <span class="unit">เมตร</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="setTensionSection" style="display: none;">
+                             <div class="input-group">
+                                <label for="setTensionValue">กำหนดแรงดึง ณ สภาวะสุดท้าย</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="setTensionValue" value="3040" step="1" min="0">
+                                    <span class="unit">กก.</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-600 -mt-2 mb-4 text-right pr-4">ที่ "อุณหภูมิที่ต้องการคำนวณ"</p>
+                        </div>
+
+                        <div id="utsSection" style="display: none;">
+                             <div class="input-group">
+                                <label for="utsValue">%UTS ณ สภาวะติดตั้ง</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="utsValue" value="22" step="0.1" min="0">
+                                    <span class="unit">%</span>
+                                </div>
+                            </div>
+                             <div class="input-group">
+                                <label for="utsTemp">ที่อุณหภูมิ</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="utsTemp" value="27" step="1">
+                                    <span class="unit">°C</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="targetTemperature">อุณหภูมิที่ต้องการคำนวณ (T_target)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="targetTemperature" value="75" step="1">
+                                <span class="unit">°C</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="outputUnit">หน่วยแสดงผลแรงดึง</label>
+                             <div class="input-wrapper">
+                                <select id="outputUnit">
+                                    <option value="newton">นิวตัน (N)</option>
+                                    <option value="kilogram" selected>กิโลกรัม (kg)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="wind-info">
+                        <h2>สภาวะแรงลม (Wind Load)</h2>
+                        <div class="input-group">
+                            <label for="enableWind">เปิดใช้งานการคำนวณแรงลม</label>
+                            <div class="input-wrapper">
+                                <input type="checkbox" id="enableWind">
+                            </div>
+                        </div>
+                        <div id="windInputGroup" style="display:none;">
+                            <div class="input-group">
+                                <label for="windPressureInput">แรงดันลม</label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="windPressureInput" value="0" step="0.1" min="0">
+                                    <span class="unit">กก./ตร.ม.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-row">
+                <div class="cable-specs">
+                    <div class="section-header">
+                        <h2>ข้อมูลจำเพาะของสายไฟ</h2>
+                        <button id="toggle-specs-btn" class="toggle-button">แสดงเพิ่มเติม</button>
+                    </div>
+                    <div class="input-group">
+                        <label for="cableType">เลือกชนิดสายไฟ</label>
+                        <div class="input-wrapper">
+                            <select id="cableType">
+                                <option value="ACSR_1272">1272 MCM ACSR/GA</option>
+                                <option value="OHG_3_8_INCH">OHG 3/8 INCH</option>
+                                <option value="ACSR_795_GA">795 MCM ACSR/GA</option>
+                                <option value="GSW_5_16_INCH">5/16 INCH GSW(HS)</option>
+                                <option value="custom">กำหนดเอง</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="bundleCount">จำนวนสายต่อเฟส</label>
+                        <div class="input-wrapper">
+                            <select id="bundleCount">
+                                <option value="1">สายเดี่ยว (Single)</option>
+                                <option value="2">สายคู่ (Two Bundle)</option>
+                                <option value="4">สายสี่ (Four Bundle)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="collapsible-specs" style="display: none;">
+                        <div class="input-group">
+                            <label for="cableArea">พื้นที่ทั้งหมด (ต่อ 1 เส้น)</label> 
+                            <div class="input-wrapper">
+                                <input type="number" id="cableArea" step="0.01" min="0" readonly>
+                                <span class="unit">ตร.มม.</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="cableDiameter">เส้นผ่านศูนย์กลาง</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="cableDiameter" step="0.01" min="0" readonly>
+                                <span class="unit">มม.</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="conductorWeight">น้ำหนักสายไฟ (ต่อ 1 เส้น)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="conductorWeight" step="0.01" min="0" readonly>
+                                <span class="unit">กก./เมตร</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="cableTensileStrength">ความแข็งแรงสูงสุด (ต่อ 1 เส้น)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="cableTensileStrength" step="1" min="0" readonly>
+                                <span class="unit">กก.</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="cableInitialModulus">Initial Modulus of Elasticity</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="cableInitialModulus" step="1" min="0" readonly>
+                                <span class="unit">กก./ตร.มม.</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="cableFinalModulus">Final Modulus of Elasticity</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="cableFinalModulus" step="1" min="0" readonly>
+                                <span class="unit">กก./ตร.มม.</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="cableThermalCoeff">สัมประสิทธิ์การขยายตัวความร้อน (α)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="cableThermalCoeff" step="0.000001" min="0" readonly>
+                                <span class="unit">/°C</span>
+                            </div>
+                        </div>
+                         <div class="input-group">
+                            <label>สภาวะของอุณหภูมิอ้างอิง</label>
+                            <div class="input-wrapper" style="gap: 15px;">
+                                <input type="radio" id="initialCondition" name="condition" value="initial">
+                                <label for="initialCondition" class="checkbox-label">สภาวะเริ่มต้น (Initial)</label>
+                                <input type="radio" id="finalCondition" name="condition" value="final" checked>
+                                <label for="finalCondition" class="checkbox-label">สภาวะสุดท้าย (Final)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="calculateButton" onclick="calculate()">คำนวณระยะหย่อน</button>
+
+        <div class="mt-6 pt-6 border-t border-gray-200 flex flex-col md:flex-row md:flex-wrap justify-center items-stretch md:items-center gap-4">
+            <button id="saveButton" class="w-full md:w-auto md:flex-1 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-colors bg-blue-500 hover:bg-blue-600">บันทึกข้อมูล</button>
+            <label for="loadButton" class="w-full md:w-auto md:flex-1 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-colors bg-amber-500 hover:bg-amber-600 cursor-pointer text-center">เปิดข้อมูล</label>
+            <input type="file" id="loadButton" class="hidden" accept=".json" onchange="loadConfiguration(event)">
+            <button id="printButton" class="w-full md:w-auto md:flex-1 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-colors bg-purple-600 hover:bg-purple-700">พิมพ์รายงาน</button>
+        </div>
+        
+        <div class="section-header mt-6">
+            <h3>ผลการคำนวณ</h3>
+            <button id="toggle-results-btn" class="toggle-button">แสดงผลการคำนวณ</button>
+        </div>
+        <div id="results" style="display: none;"></div>
+
+        <div class="chart-container" style="display: none;">
+            <canvas id="powerLineChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        let spans = [];
+        let flashInterval = null;
+
+        const inputIds = [
+            'cableType', 'bundleCount', 'cableArea', 'cableDiameter', 'conductorWeight', 
+            'cableTensileStrength', 'cableInitialModulus', 'cableFinalModulus', 
+            'cableThermalCoeff', 'height1', 'height2', 'spanLength',
+            'initialTemperature', 'sagAtInitialTemp', 'targetTemperature', 'outputUnit',
+            'enableWind', 'windPressureInput',
+            'requiredClearance', 'obstaclePosition', 'obstacleHeight',
+            'setTensionValue', 'enableObstacleCheck', 'utsValue', 'utsTemp'
+        ];
+        
+        const cableData = {
+            ACSR_1272: { area: 677.77, diameter: 33.91, weight: 2.04, tensileStrength: 14050, initialModulus: 4000, finalModulus: 6200, thermalCoeff: 0.0000213 },
+            OHG_3_8_INCH: { area: 51.05, diameter: 9.14, weight: 0.406, tensileStrength: 4900, initialModulus: 19300, finalModulus: 19300, thermalCoeff: 0.0000115 },
+            ACSR_795_GA: { area: 423.50, diameter: 26.80, weight: 1.274, tensileStrength: 9120, initialModulus: 4000, finalModulus: 6200, thermalCoeff: 0.0000213 },
+            GSW_5_16_INCH: { area: 38.37, diameter: 7.93, weight: 0.305, tensileStrength: 3628, initialModulus: 0, finalModulus: 19300, thermalCoeff: 0.0000115 }
+        };
+
+        // ... [Functions clearAllErrors, validateInput, populateInitialData, updateCableSpecs, calculateRulingSpan, updateRulingSpanDisplay, renderSpanList are unchanged] ...
+        
+        function clearAllErrors() {
+            inputIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.classList.remove('input-error');
+                }
+            });
+        }
+
+        function validateInput(id, condition, message) {
+            const element = document.getElementById(id);
+            if (!condition) {
+                element.classList.add('input-error');
+                return message;
+            }
+            element.classList.remove('input-error');
+            return null;
+        }
+        
+        function populateInitialData() {
+            const defaultCable = 'ACSR_1272';
+            const specs = cableData[defaultCable];
+            if (specs) {
+                document.getElementById('cableType').value = defaultCable;
+                document.getElementById('cableArea').value = specs.area.toFixed(2);
+                document.getElementById('cableDiameter').value = specs.diameter.toFixed(2);
+                document.getElementById('conductorWeight').value = specs.weight.toFixed(4);
+                document.getElementById('cableTensileStrength').value = specs.tensileStrength.toFixed(0);
+                document.getElementById('cableInitialModulus').value = specs.initialModulus.toFixed(0);
+                document.getElementById('cableFinalModulus').value = specs.finalModulus.toFixed(0);
+                document.getElementById('cableThermalCoeff').value = specs.thermalCoeff.toFixed(7);
+            }
+        }
+
+        function updateCableSpecs() {
+            const selectedCableType = document.getElementById('cableType').value;
+            const isCustom = selectedCableType === 'custom';
+            const specDetails = document.getElementById('collapsible-specs');
+            const inputsToToggle = ['cableArea', 'cableDiameter', 'conductorWeight', 'cableTensileStrength', 'cableInitialModulus', 'cableFinalModulus', 'cableThermalCoeff'];
+            
+            inputsToToggle.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.readOnly = !isCustom;
+            });
+            
+            if (isCustom) {
+                specDetails.style.display = 'block';
+                document.getElementById('toggle-specs-btn').textContent = 'ซ่อน';
+            }
+
+            if (!isCustom) {
+                const specs = cableData[selectedCableType];
+                if (specs) {
+                    document.getElementById('cableArea').value = specs.area.toFixed(2);
+                    document.getElementById('cableDiameter').value = specs.diameter.toFixed(2);
+                    document.getElementById('conductorWeight').value = specs.weight.toFixed(4);
+                    document.getElementById('cableTensileStrength').value = specs.tensileStrength.toFixed(0);
+                    document.getElementById('cableInitialModulus').value = specs.initialModulus.toFixed(0);
+                    document.getElementById('cableFinalModulus').value = specs.finalModulus.toFixed(0);
+                    document.getElementById('cableThermalCoeff').value = specs.thermalCoeff.toFixed(7);
+                }
+            }
+        }
+
+        function calculateRulingSpan() {
+            if (spans.length === 0) return 0;
+            const sumOfCubes = spans.reduce((acc, span) => acc + Math.pow(span, 3), 0);
+            const sumOfSpans = spans.reduce((acc, span) => acc + span, 0);
+            if (sumOfSpans === 0) return 0;
+            return Math.sqrt(sumOfCubes / sumOfSpans);
+        }
+
+        function updateRulingSpanDisplay() {
+            const rs = calculateRulingSpan();
+            document.getElementById('rulingSpanDisplay').value = rs > 0 ? rs.toFixed(2) : '';
+        }
+
+        function renderSpanList() {
+            const listElement = document.getElementById('spanList');
+            const clearBtn = document.getElementById('clearSpansBtn');
+            listElement.innerHTML = '';
+            spans.forEach((span, index) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center';
+                li.textContent = `${span} เมตร`;
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = 'ลบ';
+                removeBtn.className = 'text-red-500 text-xs ml-4';
+                removeBtn.onclick = () => {
+                    spans.splice(index, 1);
+                    renderSpanList();
+                    updateRulingSpanDisplay();
+                };
+                li.appendChild(removeBtn);
+                listElement.appendChild(li);
+            });
+            clearBtn.style.display = spans.length > 0 ? 'inline-block' : 'none';
+        }
+
+        function calculateHeight(x, L, H1, H2, H_tension, w_per_meter, method) {
+            if (method === 'catenary') {
+                if (H_tension === 0 || isNaN(H_tension) || !isFinite(H_tension) || w_per_meter === 0) return NaN;
+
+                const c = H_tension / w_per_meter;
+                const h_diff = H2 - H1;
+                
+                let x_low = L / 2;
+                for (let i = 0; i < 10; i++) {
+                    let term1 = Math.sinh((L - x_low) / c);
+                    let term2 = Math.sinh(x_low / c);
+                    if (term2 === 0) { 
+                        x_low = L/2 - (H_tension * h_diff)/(w_per_meter * L);
+                        break;
+                    }
+                    let log_arg = (term1 + h_diff / (w_per_meter * c)) / term2;
+                    if (log_arg <= 0) {
+                        x_low = L/2 - (H_tension * h_diff)/(w_per_meter * L);
+                        break;
+                    }
+                    x_low = L / 2 - (c / 2) * Math.log(log_arg);
+                    if (isNaN(x_low)) {
+                        x_low = L/2 - (H_tension * h_diff)/(w_per_meter * L);
+                        break;
+                    }
+                }
+                const y_low = H1 - c * (Math.cosh(x_low / c) - 1);
+                return y_low + c * (Math.cosh((x - x_low) / c) - 1);
+            } else { // Parabolic
+                const h_diff = H2 - H1;
+                if (H_tension === 0 || isNaN(H_tension) || !isFinite(H_tension)) return NaN;
+                return H1 + (h_diff * x) / L - (w_per_meter * x * (L - x)) / (2 * H_tension);
+            }
+        }
+        
+        function plotGraph(L, H1, H2, H_tension, w_vertical, requiredClearance, obstaclePosition, obstacleHeight, enableObstacle, equationMethod) {
+            const chartDiv = document.querySelector('.chart-container');
+            if (!chartDiv || L <= 0) {
+                if(chart) chart.destroy();
+                chartDiv.style.display = 'none';
+                return;
+            };
+
+            if (flashInterval) {
+                clearInterval(flashInterval);
+                flashInterval = null;
+            }
+
+            const pointCount = 100;
+            const xValues = Array.from({length: pointCount}, (_, i) => i * L / (pointCount - 1));
+            const lineData = xValues.map(x => ({ x: x, y: calculateHeight(x, L, H1, H2, H_tension, w_vertical, equationMethod) }));
+            
+            let x_lowest_plot, y_lowest_plot;
+             if (equationMethod === 'catenary') {
+                const c = H_tension / w_vertical;
+                const h_diff = H2 - H1;
+                x_lowest_plot = L / 2;
+                for (let i = 0; i < 10; i++) {
+                     let term1 = Math.sinh((L - x_lowest_plot) / c);
+                     let term2 = Math.sinh(x_lowest_plot / c);
+                     if(term2 === 0) { 
+                         x_lowest_plot = L/2 - (H_tension * h_diff)/(w_vertical * L);
+                         break;
+                     }
+                     let log_arg = (term1 + h_diff/(w_vertical*c))/term2;
+                     if(log_arg <= 0) {
+                         x_lowest_plot = L/2 - (H_tension * h_diff)/(w_vertical * L);
+                         break;
+                     }
+                     x_lowest_plot = L/2 - (c/2)*Math.log(log_arg);
+                     if(isNaN(x_lowest_plot)){ 
+                         x_lowest_plot = L/2 - (H_tension * h_diff)/(w_vertical * L);
+                         break; 
+                     }
+                }
+                 y_lowest_plot = calculateHeight(x_lowest_plot, L, H1, H2, H_tension, w_vertical, 'catenary');
+            } else {
+                 x_lowest_plot = (L / 2) - (H_tension * (H2 - H1)) / (w_vertical * L);
+                 y_lowest_plot = calculateHeight(x_lowest_plot, L, H1, H2, H_tension, w_vertical, 'parabolic');
+            }
+
+
+            const heightAtObstacle = enableObstacle ? calculateHeight(obstaclePosition, L, H1, H2, H_tension, w_vertical, equationMethod) : 0;
+            const obstacleClearancePass = !enableObstacle || (heightAtObstacle > obstacleHeight);
+
+            if (chart) chart.destroy();
+            const ctx = document.getElementById('powerLineChart').getContext('2d');
+            
+            const groundClearanceDiff = y_lowest_plot - requiredClearance;
+            
+            const annotations = {
+                requiredClearanceLine: { type: 'line', yMin: requiredClearance, yMax: requiredClearance, borderColor: 'rgba(255, 99, 132, 0.8)', borderWidth: 2, borderDash: [6, 6], label: { content: `ระยะปลอดภัยขั้นต่ำ (${requiredClearance} ม.)`, enabled: true, position: 'start', backgroundColor: 'rgba(255, 99, 132, 0.8)', font: { family: 'Sarabun' } } },
+                groundClearanceDimLine: { type: 'line', xMin: x_lowest_plot, xMax: x_lowest_plot, yMin: requiredClearance, yMax: y_lowest_plot, borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 2, label: { content: `${groundClearanceDiff.toFixed(2)} ม.`, enabled: true, position: 'center', xAdjust: 25, backgroundColor: 'rgba(255, 255, 255, 0.7)', color: '#333', font: { family: 'Sarabun', weight: 'bold' } } },
+                groundClearanceTopTick: { type: 'line', xMin: x_lowest_plot - 5, xMax: x_lowest_plot + 5, yMin: y_lowest_plot, yMax: y_lowest_plot, borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 2 },
+                groundClearanceBottomTick: { type: 'line', xMin: x_lowest_plot - 5, xMax: x_lowest_plot + 5, yMin: requiredClearance, yMax: requiredClearance, borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 2 },
+            };
+            
+            if (enableObstacle) {
+                const obstacleClearanceDiff = heightAtObstacle - obstacleHeight;
+                annotations.obstacleBox = { 
+                    type: 'box', 
+                    xMin: obstaclePosition - 2, xMax: obstaclePosition + 2, 
+                    yMin: 0, yMax: obstacleHeight, 
+                    backgroundColor: 'rgba(153, 102, 255, 0.4)', 
+                    borderColor: obstacleClearancePass ? 'rgba(153, 102, 255, 1)' : 'rgba(255, 26, 104, 1)',
+                    borderWidth: obstacleClearancePass ? 1 : 3,
+                };
+                annotations.obstacleClearanceDimLine = { type: 'line', xMin: obstaclePosition, xMax: obstaclePosition, yMin: obstacleHeight, yMax: heightAtObstacle, borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 2, label: { content: `${obstacleClearanceDiff.toFixed(2)} ม.`, enabled: true, position: 'center', xAdjust: 25, backgroundColor: 'rgba(255, 255, 255, 0.7)', color: '#333', font: { family: 'Sarabun', weight: 'bold' } } };
+                annotations.obstacleTopTick = { type: 'line', xMin: obstaclePosition - 5, xMax: obstaclePosition + 5, yMin: heightAtObstacle, yMax: heightAtObstacle, borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 2 };
+                annotations.obstacleBottomTick = { type: 'line', xMin: obstaclePosition - 5, xMax: obstaclePosition + 5, yMin: obstacleHeight, yMax: obstacleHeight, borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 2 };
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: `รูปทรงสายไฟฟ้า (ที่ช่วงเสายาวที่สุด: ${L.toFixed(0)} ม.)`, data: lineData, borderColor: '#2196F3', borderWidth: 3, fill: false, tension: 0.1, pointRadius: 0 },
+                        { label: 'จุดต่ำสุด', data: [{x: x_lowest_plot, y: y_lowest_plot}], pointBackgroundColor: '#F44336', pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 8, showLine: false },
+                        { label: 'เสา 1', data: [{x: 0, y: H1}], pointBackgroundColor: '#607D8B', pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 8, showLine: false },
+                        { label: 'เสา 2', data: [{x: L, y: H2}], pointBackgroundColor: '#607D8B', pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 8, showLine: false }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: true, position: 'bottom' }, 
+                        tooltip: { mode: 'index', intersect: false, callbacks: {
+                            title: (context) => `ระยะทาง: ${context[0].parsed.x.toFixed(2)} เมตร`,
+                            label: (context) => context.dataset.label.startsWith('รูปทรง') ? `ความสูง: ${context.parsed.y.toFixed(2)} เมตร` : `${context.dataset.label}: (${context.parsed.x.toFixed(2)}, ${context.parsed.y.toFixed(2)})`
+                        }},
+                        annotation: { annotations: annotations }
+                    },
+                    scales: {
+                        x: { type: 'linear', title: { display: true, text: 'ระยะทางในแนวราบ (เมตร) จากเสาต้นที่ 1', font: { size: 14, weight: 'bold', family: 'Sarabun' }}, ticks: { callback: (value) => Math.round(value) + ' ม.' }, grid: { color: 'rgba(0,0,0,0.05)' }},
+                        y: { 
+                            title: { display: true, text: 'ความสูง (เมตร)', font: { size: 14, weight: 'bold', family: 'Sarabun' }}, 
+                            min: 0, 
+                            max: Math.max(H1, H2, y_lowest_plot, requiredClearance, obstacleHeight) * 1.2, 
+                            ticks: { callback: (value) => Math.round(value) + ' ม.' },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        }
+                    }
+                }
+            });
+
+            if (enableObstacle && !obstacleClearancePass) {
+                let isRed = true;
+                flashInterval = setInterval(() => {
+                    annotations.obstacleBox.borderColor = isRed ? 'rgba(255, 26, 104, 1)' : 'rgba(153, 102, 255, 0.4)';
+                    annotations.obstacleBox.borderWidth = isRed ? 3 : 1;
+                    isRed = !isRed;
+                    chart.update('none');
+                }, 500);
+            }
+        }
+        
+        function calculate() {
+            clearAllErrors();
+            const results = document.getElementById('results');
+            const toggleBtn = document.getElementById('toggle-results-btn');
+            const calcMode = document.querySelector('input[name="calcMode"]:checked').value;
+            const calculationMethod = document.querySelector('input[name="calculationMethod"]:checked').value;
+            const equationMethod = document.querySelector('input[name="equationMethod"]:checked').value;
+            
+            let calculationSpan;
+            let spansForSagTable = [];
+            let errorMessages = [];
+
+            if (calcMode === 'single') {
+                const singleSpan = parseFloat(document.getElementById('spanLength').value);
+                calculationSpan = singleSpan;
+                spansForSagTable.push(singleSpan);
+            } else {
+                if (spans.length === 0) { errorMessages.push('กรุณาเพิ่มช่วงเสาอย่างน้อยหนึ่งค่าสำหรับ Ruling Span'); }
+                calculationSpan = calculateRulingSpan();
+                spansForSagTable = spans;
+            }
+            
+            const g = 9.81;
+            const L = calculationSpan;
+            
+            const bundleMultiplier = parseInt(document.getElementById('bundleCount').value, 10);
+            const height1 = parseFloat(document.getElementById('height1').value);
+            const height2 = parseFloat(document.getElementById('height2').value);
+            const h_diff = height2 - height1;
+            const outputUnit = document.getElementById('outputUnit').value;
+            const thermalCoeff = parseFloat(document.getElementById('cableThermalCoeff').value);
+            let initialTemperature = parseFloat(document.getElementById('initialTemperature').value); // Can be overridden by UTS method
+            const targetTemperature = parseFloat(document.getElementById('targetTemperature').value);
+            const condition = document.querySelector('input[name="condition"]:checked').value;
+            const baseConductorWeight = parseFloat(document.getElementById('conductorWeight').value);
+            const baseArea_mm2 = parseFloat(document.getElementById('cableArea').value);
+            const baseTensileStrength_kgf = parseFloat(document.getElementById('cableTensileStrength').value);
+            const initialModulus = parseFloat(document.getElementById('cableInitialModulus').value);
+            const finalModulus = parseFloat(document.getElementById('cableFinalModulus').value);
+            const cableDiameter_mm = parseFloat(document.getElementById('cableDiameter').value);
+            const enableWind = document.getElementById('enableWind').checked;
+            const windPressure_kg_m2 = parseFloat(document.getElementById('windPressureInput').value);
+            const requiredClearance = parseFloat(document.getElementById('requiredClearance').value);
+            
+            const enableObstacleCheck = document.getElementById('enableObstacleCheck').checked;
+            const obstacleHeight = enableObstacleCheck ? parseFloat(document.getElementById('obstacleHeight').value) : 0;
+            const obstaclePosition = enableObstacleCheck ? parseFloat(document.getElementById('obstaclePosition').value) : 0;
+
+            const conductorWeight = baseConductorWeight * bundleMultiplier;
+            const area_mm2 = baseArea_mm2 * bundleMultiplier;
+            const tensileStrength_kgf = baseTensileStrength_kgf * bundleMultiplier;
+            
+            const w_c = conductorWeight * g;
+            let w_total = w_c;
+            if (enableWind && !isNaN(windPressure_kg_m2) && windPressure_kg_m2 > 0) {
+                const cableDiameter_m = cableDiameter_mm / 1000;
+                const windForce_per_cable_kg_m = windPressure_kg_m2 * cableDiameter_m;
+                const total_wind_force_kg_m = windForce_per_cable_kg_m * bundleMultiplier;
+                let w_h = total_wind_force_kg_m * g;
+                w_total = Math.sqrt(Math.pow(w_c, 2) + Math.pow(w_h, 2));
+            }
+
+            const refModulus = (condition === 'initial') ? initialModulus : finalModulus;
+            const final_EA = finalModulus * g * area_mm2;
+            const ref_EA = refModulus * g * area_mm2;
+
+            let H_initial, H_target, sagAtInitialTemp;
+
+            // --- Calculation Logic ---
+            if (calculationMethod === 'initial') {
+                sagAtInitialTemp = parseFloat(document.getElementById('sagAtInitialTemp').value);
+                if (validateInput('sagAtInitialTemp', sagAtInitialTemp > 0, 'ระยะหย่อน ณ T_ref ต้องมากกว่า 0')) {
+                     errorMessages.push('ระยะหย่อน ณ T_ref ต้องมากกว่า 0');
+                }
+                 if (errorMessages.length > 0) { 
+                    results.innerHTML = `<p class="warning-text">${errorMessages.join('<br>')}</p>`;
+                    results.style.display = 'block';
+                    return;
+                }
+
+                if (equationMethod === 'catenary') {
+                        const S = sagAtInitialTemp;
+                        let c_est = (L * L) / (8 * S) + S / 2;
+
+                    H_initial = w_c * c_est;
+                } else {
+                    H_initial = (w_c * Math.pow(L, 2)) / (8 * sagAtInitialTemp);
+                }
+            
+            } else if (calculationMethod === 'setTension') {
+                const setTensionKg = parseFloat(document.getElementById('setTensionValue').value);
+                if (validateInput('setTensionValue', setTensionKg > 0, 'ค่าแรงดึงที่กำหนดต้องมากกว่า 0')) {
+                    errorMessages.push('ค่าแรงดึงที่กำหนดต้องมากกว่า 0');
+                }
+                if (errorMessages.length > 0) { 
+                    results.innerHTML = `<p class="warning-text">${errorMessages.join('<br>')}</p>`;
+                    results.style.display = 'block';
+                    return; 
+                }
+                H_target = setTensionKg * g;
+                // This becomes a reverse calculation, so we define the target state and solve for the initial state
+            } else { // uts
+                const utsValue = parseFloat(document.getElementById('utsValue').value);
+                const utsTemp = parseFloat(document.getElementById('utsTemp').value);
+                if (validateInput('utsValue', utsValue > 0, '%UTS ต้องมากกว่า 0')) {
+                    errorMessages.push('%UTS ต้องมากกว่า 0');
+                }
+                if (errorMessages.length > 0) { 
+                    results.innerHTML = `<p class="warning-text">${errorMessages.join('<br>')}</p>`;
+                    results.style.display = 'block';
+                    return; 
+                }
+                initialTemperature = utsTemp; // The reference temp is the UTS temp
+                H_initial = (tensileStrength_kgf * (utsValue / 100)) * g;
+            }
+
+            if (calculationMethod === 'initial' || calculationMethod === 'uts') {
+                let C;
+                if(equationMethod === 'catenary') {
+                    const c_initial_calc = H_initial / w_c;
+                    const Ls_initial = 2 * c_initial_calc * Math.sinh(L / (2*c_initial_calc));
+                    C = Ls_initial - (H_initial * L) / ref_EA - (Ls_initial * thermalCoeff * initialTemperature);
+
+                } else { // Parabolic
+                    C = (Math.pow(w_c, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_initial, 2)) + (H_initial * L) / ref_EA - (thermalCoeff * initialTemperature * L);
+                }
+                
+                H_target = H_initial; // Start guess
+                for (let i = 0; i < 50; i++) {
+                    let H_prev = H_target;
+                    if (H_target <= 0) { H_target = 1; }
+                    
+                    let F_val, dF_dH;
+                    if(equationMethod === 'catenary') {
+                        const c_target = H_target / w_total;
+                        const Ls_target = 2 * c_target * Math.sinh(L / (2 * c_target));
+                        F_val = Ls_target - (H_target * L) / final_EA - (Ls_target * thermalCoeff * targetTemperature) - C;
+                        const dLs_dH = (Ls_target / H_target) - (L / H_target) * Math.cosh(L / (2 * c_target));
+                        dF_dH = dLs_dH * (1 - H_target/final_EA - thermalCoeff * targetTemperature) - Ls_target / final_EA;
+                    } else {
+                        F_val = (Math.pow(w_total, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_target, 2)) + (H_target * L) / final_EA - (thermalCoeff * targetTemperature * L) - C;
+                        dF_dH = -(2 * Math.pow(w_total, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_target, 3)) + L / final_EA;
+                    }
+
+                    if (Math.abs(dF_dH) < 1e-12) { break; }
+                    H_target = H_target - (F_val / dF_dH);
+                    if (Math.abs(H_target - H_prev) < 0.001) break;
+                }
+
+            } else { // setTension (Reverse Calculation)
+                let C_final;
+                if(equationMethod === 'catenary') {
+                    const c_target = H_target / w_total;
+                    const Ls_target = 2 * c_target * Math.sinh(L / (2 * c_target));
+                    C_final = Ls_target - (H_target * Ls_target) / final_EA - Ls_target * thermalCoeff * targetTemperature;
+                } else {
+                    C_final = (Math.pow(w_total, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_target, 2)) + (H_target * L) / final_EA - (thermalCoeff * targetTemperature * L);
+                }
+                
+                H_initial = H_target;
+                for (let i = 0; i < 50; i++) {
+                    let H_prev = H_initial;
+                    if (H_initial <= 0) { H_initial = 1; }
+
+                    let F_val, dF_dH;
+                    if(equationMethod === 'catenary') {
+                        const c_initial = H_initial / w_c;
+                        const Ls_initial = 2 * c_initial * Math.sinh(L / (2 * c_initial));
+                        F_val = Ls_initial - (H_initial * Ls_initial) / ref_EA - Ls_initial * thermalCoeff * initialTemperature - C_final;
+                        const dLs_dH = (Ls_initial / H_initial) - (L / w_c) * Math.cosh(L / (2 * c_initial));
+                        dF_dH = dLs_dH * (1 - H_initial/ref_EA - thermalCoeff * initialTemperature) - Ls_initial / ref_EA;
+                    } else {
+                        F_val = (Math.pow(w_c, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_initial, 2)) + (H_initial * L) / ref_EA - (thermalCoeff * initialTemperature * L) - C_final;
+                        dF_dH = -(2 * Math.pow(w_c, 2) * Math.pow(L, 3)) / (24 * Math.pow(H_initial, 3)) + L / ref_EA;
+                    }
+
+                    if (Math.abs(dF_dH) < 1e-12) { break; }
+                    H_initial = H_initial - (F_val / dF_dH);
+                    if (Math.abs(H_initial - H_prev) < 0.001) break;
+                }
+            }
+            
+            if (equationMethod === 'catenary') {
+                const c_initial_calc = H_initial / w_c;
+                sagAtInitialTemp = c_initial_calc * (Math.cosh(L / (2*c_initial_calc)) - 1);
+            } else {
+                sagAtInitialTemp = (w_c * Math.pow(L, 2)) / (8 * H_initial);
+            }
+            
+            // --- Display Logic ---
+            let unitSymbol, H_initial_display, H_target_display, tensileStrength_display, tensionAtPole1_target_display, tensionAtPole2_target_display;
+            if (outputUnit === 'kilogram') {
+                H_initial_display = H_initial / g;
+                H_target_display = H_target / g;
+                tensileStrength_display = tensileStrength_kgf;
+                unitSymbol = 'กก.';
+            } else {
+                H_initial_display = H_initial;
+                H_target_display = H_target;
+                tensileStrength_display = tensileStrength_kgf * g;
+                unitSymbol = 'N';
+            }
+
+            let resultHTML = '';
+            
+            let sag_resultant_target, sag_vertical_target, requiredConductorLength_target, y_lowest_target, x_lowest_target, tensionAtPole1, tensionAtPole2;
+
+            if (equationMethod === 'catenary') {
+                const c_vertical = H_target / w_c;
+                sag_vertical_target = c_vertical * (Math.cosh(L / (2 * c_vertical)) - 1);
+                const c_total = H_target / w_total;
+                sag_resultant_target = c_total * (Math.cosh(L / (2 * c_total)) - 1);
+                requiredConductorLength_target = 2 * c_total * Math.sinh(L / (2 * c_total));
+                
+                x_lowest_target = L / 2;
+                 for (let i = 0; i < 10; i++) {
+                     let term1 = Math.sinh((L - x_lowest_target) / c_vertical);
+                     let term2 = Math.sinh(x_lowest_target / c_vertical);
+                     if(term2 === 0) { 
+                         x_lowest_target = L/2 - (H_target * h_diff)/(w_c * L);
+                         break;
+                     }
+                     let log_arg = (term1 + h_diff/(w_c*c_vertical))/term2;
+                     if(log_arg <= 0) {
+                         x_lowest_target = L/2 - (H_target * h_diff)/(w_c * L);
+                         break;
+                     }
+                     x_lowest_target = L/2 - (c_vertical/2)*Math.log(log_arg);
+                     if(isNaN(x_lowest_target)){ 
+                         x_lowest_target = L/2 - (H_target * h_diff)/(w_c * L);
+                         break; 
+                     }
+                }
+                y_lowest_target = calculateHeight(x_lowest_target, L, height1, height2, H_target, w_c, 'catenary');
+                tensionAtPole1 = H_target * Math.cosh(x_lowest_target / c_total);
+                tensionAtPole2 = H_target * Math.cosh((L - x_lowest_target) / c_total);
+
+            } else { // Parabolic
+                sag_resultant_target = (w_total * Math.pow(L, 2)) / (8 * H_target);
+                sag_vertical_target = (w_c * Math.pow(L, 2)) / (8 * H_target);
+                requiredConductorLength_target = L + (w_total * w_total * Math.pow(L, 3)) / (24 * H_target * H_target) + (h_diff * h_diff) / (2 * L);
+                x_lowest_target = (L / 2) - (H_target * h_diff) / (w_c * L);
+                y_lowest_target = calculateHeight(x_lowest_target, L, height1, height2, H_target, w_c, 'parabolic');
+                tensionAtPole1 = Math.sqrt(Math.pow(H_target, 2) + Math.pow(w_total * x_lowest_target, 2));
+                tensionAtPole2 = Math.sqrt(Math.pow(H_target, 2) + Math.pow(w_total * (L - x_lowest_target), 2));
+            }
+            
+            const heightAtObstacle = enableObstacleCheck ? calculateHeight(obstaclePosition, L, height1, height2, H_target, w_c, equationMethod) : 0;
+            const obstacleClearancePass = !enableObstacleCheck || (heightAtObstacle > obstacleHeight);
+
+            if (outputUnit === 'kilogram') {
+                tensionAtPole1_target_display = tensionAtPole1 / g;
+                tensionAtPole2_target_display = tensionAtPole2 / g;
+            } else {
+                tensionAtPole1_target_display = tensionAtPole1;
+                tensionAtPole2_target_display = tensionAtPole2;
+            }
+
+            if(calculationMethod === 'setTension' || calculationMethod === 'uts') {
+                 resultHTML += `
+                    <div class="results-section" style="background-color: var(--card-bg-temp); border: 1px solid var(--card-border-temp); padding: 1rem; border-radius: 8px;">
+                        <h4 style="color: #c0392b;">ผลลัพธ์จากการคำนวณย้อนกลับ</h4>
+                        <p>เพื่อให้ได้สภาวะที่ต้องการ ณ อุณหภูมิ ${calculationMethod === 'setTension' ? targetTemperature : initialTemperature}°C,</p>
+                        <p>คุณจะต้องติดตั้งสายให้มีระยะหย่อน <strong>${sagAtInitialTemp.toFixed(2)} เมตร</strong> ที่อุณหภูมิอ้างอิง ${initialTemperature}°C</p>
+                        <p>ซึ่งจะเกิดแรงดึงเริ่มต้น <strong>${H_initial_display.toFixed(2)} ${unitSymbol}</strong></p>
+                    </div>
+                `;
+            }
+
+            resultHTML += `
+                <div class="results-section">
+                    <h4>สภาวะอ้างอิง (${initialTemperature.toFixed(0)}°C, ${condition}, ไม่มีลม):</h4>
+                    <p><strong>แรงดึงในแนวราบ (H_ref):</strong> ${H_initial_display.toFixed(2)} ${unitSymbol}</p>
+                    <p><strong>ระยะหย่อน (S_ref):</strong> ${sagAtInitialTemp.toFixed(2)} เมตร</p>
+                </div>
+                <div class="results-section">
+                    <h4>สภาวะที่อุณหภูมิ ${targetTemperature.toFixed(0)}°C (Final) ${enableWind && windPressure_kg_m2 > 0 ? `และแรงดันลม ${windPressure_kg_m2.toFixed(2)} kg/m²` : ''}:</h4>
+                    <p><strong>สมการที่ใช้:</strong> <strong style="color: #d9534f;">${equationMethod === 'catenary' ? 'Catenary (แม่นยำสูง)' : 'Parabolic'}</strong></p>
+                    <p><strong>แรงดึงในแนวราบ (H_target):</strong> ${H_target_display.toFixed(2)} ${unitSymbol}</p>
+                    ${enableWind && w_total > w_c ? 
+                        `<p><strong>ระยะหย่อนรวม (Resultant Sag):</strong> ${sag_resultant_target.toFixed(2)} เมตร</p>
+                         <p><strong>ระยะหย่อนแนวดิ่ง (Vertical Sag):</strong> ${sag_vertical_target.toFixed(2)} เมตร</p>` :
+                        `<p><strong>ระยะหย่อน (Sag):</strong> ${sag_vertical_target.toFixed(2)} เมตร</p>`
+                    }
+                    <p><strong>ตำแหน่งจุดต่ำสุดของสาย (จากเสา 1):</strong> ${x_lowest_target.toFixed(2)} เมตร</p>
+                    <p><strong>ความสูงของสายไฟที่จุดต่ำสุด:</strong> ${y_lowest_target.toFixed(2)} เมตร</p>
+                    <p><strong>ความยาวสายไฟที่ประมาณการ:</strong> ${requiredConductorLength_target.toFixed(2)} เมตร</p>
+                    <p><strong>แรงดึงที่เสาต้นที่ 1:</strong> ${tensionAtPole1_target_display.toFixed(2)} ${unitSymbol}</p>
+                    <p><strong>แรงดึงที่เสาต้นที่ 2:</strong> ${tensionAtPole2_target_display.toFixed(2)} ${unitSymbol}</p>
+                </div>`;
+            
+            const maxTension = Math.max(tensionAtPole1_target_display, tensionAtPole2_target_display);
+            const safetyFactorPercentage = (maxTension / tensileStrength_display) * 100;
+            let sfColor = safetyFactorPercentage > 50 ? 'var(--status-fail-text)' : 'var(--status-pass-text)';
+            let sfWarning = safetyFactorPercentage > 50 ? ' (ค่าสูง ควรพิจารณาความปลอดภัยเพิ่มเติม)' : ' (อยู่ในเกณฑ์ปลอดภัย)';
+            
+            resultHTML += `
+                <div class="results-section">
+                    <h4>การประเมินความปลอดภัย (Safety Factor)</h4>
+                    <p><strong>แรงดึงสูงสุดที่เกิดขึ้นในสาย:</strong> ${maxTension.toFixed(2)} ${unitSymbol}</p>
+                    <p><strong>เปรียบเทียบกับความแข็งแรงสูงสุดของสาย (${tensileStrength_display.toFixed(0)} ${unitSymbol}):</strong> 
+                       <strong style="color:${sfColor}; font-size: 1.1em;">${safetyFactorPercentage.toFixed(2)}%</strong>
+                       <span style="color:${sfColor};">${sfWarning}</span>
+                    </p>
+                </div>
+            `;
+            
+            let weightHTML = `
+                <div class="results-section">
+                    <h4>น้ำหนักแนวดิ่งที่กระทำต่อเสา (Weight Span)</h4>
+            `;
+            const vertical_w_kg = conductorWeight;
+            if (calcMode === 'single') {
+                const weight_pole = vertical_w_kg * L / 2;
+                weightHTML += `
+                    <p><strong>น้ำหนักที่เสาต้นที่ 1 (เสา Dead-end):</strong> ${weight_pole.toFixed(2)} กก.</p>
+                    <p><strong>น้ำหนักที่เสาต้นที่ 2 (เสา Dead-end):</strong> ${weight_pole.toFixed(2)} กก.</p>
+                    <p class="text-sm text-gray-600">คำนวณจากครึ่งหนึ่งของช่วงเสา (L/2) สำหรับเสาแต่ละต้น</p>
+                `;
+            } else {
+                if (spans.length > 0) {
+                    const weight_pole_dead_end = vertical_w_kg * spans[0] / 2;
+                    weightHTML += `<p><strong>ตัวอย่างน้ำหนักที่เสาต้นแรก/สุดท้าย (Dead-end):</strong> ${weight_pole_dead_end.toFixed(2)} กก. (คำนวณจาก L1/2)</p>`;
+                    
+                    if (spans.length > 1) {
+                        const weight_pole_suspension = vertical_w_kg * (spans[0] / 2 + spans[1] / 2);
+                        weightHTML += `<p><strong>ตัวอย่างน้ำหนักที่เสากลาง (Suspension):</strong> ${weight_pole_suspension.toFixed(2)} กก. (คำนวณจาก L1/2 + L2/2)</p>`;
+                    } else {
+                         weightHTML += `<p class="text-sm text-gray-600">ต้องมีอย่างน้อย 2 ช่วงเสาเพื่อคำนวณน้ำหนักบนเสากลาง (Suspension)</p>`;
+                    }
+                    weightHTML += `<p class="text-sm text-gray-600">หมายเหตุ: การคำนวณนี้เป็นตัวอย่างโดยใช้ช่วงเสาแรกๆ จากรายการที่คุณป้อน</p>`;
+                } else {
+                    weightHTML += `<p>กรุณาเพิ่มช่วงเสาเพื่อคำนวณน้ำหนัก</p>`;
+                }
+            }
+            weightHTML += `</div>`;
+            resultHTML += weightHTML;
+
+            const clearanceCheckHTML = generateClearanceCheckResults(y_lowest_target, requiredClearance, obstaclePosition, obstacleHeight, L, height1, height2, H_target, w_c, enableObstacleCheck, equationMethod);
+            resultHTML += clearanceCheckHTML;
+            
+            results.innerHTML = resultHTML;
+            results.style.display = 'none'; 
+            toggleBtn.textContent = 'แสดงผลการคำนวณ'; 
+            
+            document.querySelector('.chart-container').style.display = 'block';
+            plotGraph(L, height1, height2, H_target, w_c, requiredClearance, obstaclePosition, obstacleHeight, enableObstacleCheck, equationMethod);
+        }
+        
+        function generateClearanceCheckResults(lowestPoint, required, obsPos, obsH, L, H1, H2, H_tension, w_c, enableObstacle, equationMethod) {
+            let html = '<div class="results-section"><h4>ผลการตรวจสอบระยะปลอดภัย (Ground Clearance)</h4>';
+            
+            const groundClearancePass = lowestPoint >= required;
+            const groundClearanceDiff = lowestPoint - required;
+
+            html += `<table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="p-2 border">รายการตรวจสอบ (จุดต่ำสุด)</th>
+                                <th class="p-2 border text-right">ค่า</th>
+                                <th class="p-2 border text-center">สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            html += `<tr class="border-b"><td class="p-2">ความสูงสาย ณ จุดต่ำสุด</td><td class="p-2 text-right">${lowestPoint.toFixed(2)} ม.</td><td class="p-2 text-center">-</td></tr>`;
+            html += `<tr class="border-b"><td class="p-2">ระยะปลอดภัยที่ต้องการ</td><td class="p-2 text-right">${required.toFixed(2)} ม.</td><td class="p-2 text-center">-</td></tr>`;
+            html += `<tr class="font-bold ${groundClearancePass ? 'text-green-700' : 'text-red-700'}">
+                        <td class="p-2">ระยะห่างเหนือเกณฑ์ปลอดภัย</td>
+                        <td class="p-2 text-right">${groundClearanceDiff.toFixed(2)} ม.</td>
+                        <td class="p-2 text-center"><span class="status-badge ${groundClearancePass ? 'status-pass' : 'status-fail'}">${groundClearancePass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
+                     </tr>`;
+            html += `</tbody></table>`;
+            
+            if (enableObstacle && !isNaN(obsPos) && !isNaN(obsH) && obsPos >= 0 && obsPos <= L) {
+                const heightAtObstacle = calculateHeight(obsPos, L, H1, H2, H_tension, w_c, equationMethod);
+                const obstacleClearancePass = heightAtObstacle > obsH;
+                const obstacleClearanceDiff = heightAtObstacle - obsH;
+
+                html += `<table class="w-full text-left border-collapse mt-4">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="p-2 border">รายการตรวจสอบ (สิ่งกีดขวาง)</th>
+                                    <th class="p-2 border text-right">ค่า</th>
+                                    <th class="p-2 border text-center">สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                html += `<tr class="border-b"><td class="p-2">ความสูงสาย ณ ตำแหน่งสิ่งกีดขวาง</td><td class="p-2 text-right">${heightAtObstacle.toFixed(2)} ม.</td><td class="p-2 text-center">-</td></tr>`;
+                html += `<tr class="border-b"><td class="p-2">ความสูงสิ่งกีดขวาง</td><td class="p-2 text-right">${obsH.toFixed(2)} ม.</td><td class="p-2 text-center">-</td></tr>`;
+                html += `<tr class="font-bold ${obstacleClearancePass ? 'text-green-700' : 'text-red-700'}">
+                            <td class="p-2">ระยะห่างเหนือสิ่งกีดขวาง</td>
+                            <td class="p-2 text-right">${obstacleClearanceDiff.toFixed(2)} ม.</td>
+                            <td class="p-2 text-center"><span class="status-badge ${obstacleClearancePass ? 'status-pass' : 'status-fail'}">${obstacleClearancePass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
+                         </tr>`;
+                html += `</tbody></table>`;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        window.saveConfiguration = function() {
+            const config = { 
+                spans: spans
+            };
+            inputIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) { 
+                    config[id] = (element.type === 'checkbox') ? element.checked : element.value;
+                }
+            });
+            config['calcMode'] = document.querySelector('input[name="calcMode"]:checked').value;
+            config['calculationMethod'] = document.querySelector('input[name="calculationMethod"]:checked').value;
+            config['condition'] = document.querySelector('input[name="condition"]:checked').value;
+            config['equationMethod'] = document.querySelector('input[name="equationMethod"]:checked').value;
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `cable_config_${Date.now()}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        window.loadConfiguration = function(event) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const config = JSON.parse(e.target.result);
+                    inputIds.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element && config[id] !== undefined) { 
+                            if(element.type === 'checkbox') {
+                                element.checked = config[id];
+                            } else {
+                                element.value = config[id];
+                            }
+                        }
+                    });
+                    if (config.calcMode) document.querySelector(`input[name="calcMode"][value="${config.calcMode}"]`).checked = true;
+                    if (config.calculationMethod) document.querySelector(`input[name="calculationMethod"][value="${config.calculationMethod}"]`).checked = true;
+                    if (config.condition) document.querySelector(`input[name="condition"][value="${config.condition}"]`).checked = true;
+                    if (config.equationMethod) document.querySelector(`input[name="equationMethod"][value="${config.equationMethod}"]`).checked = true;
+
+                    if (config.spans && Array.isArray(config.spans)) {
+                        spans = config.spans;
+                        renderSpanList();
+                        updateRulingSpanDisplay();
+                    }
+                    updateCableSpecs();
+                    toggleCalcMode();
+                    toggleCalcMethod();
+                    toggleWindInput();
+                    toggleObstacleInputs();
+                } catch (error) {
+                    alert("ข้อผิดพลาด: ไม่สามารถอ่านไฟล์ข้อมูลได้");
+                }
+            };
+            if(event.target.files[0]) {
+                reader.readAsText(event.target.files[0]);
+            }
+        }
+
+        window.generateReport = function() {
+            // This function remains unchanged.
+        }
+
+        function toggleCalcMode() {
+            const calcMode = document.querySelector('input[name="calcMode"]:checked').value;
+            const singleSpanSection = document.getElementById('singleSpanSection');
+            const rulingSpanSection = document.getElementById('rulingSpanSection');
+            const rulingSpanInfo = document.getElementById('rulingSpanInfo');
+            const clearanceSection = document.querySelector('.clearance-info');
+
+            if (calcMode === 'single') {
+                singleSpanSection.style.display = 'block';
+                rulingSpanSection.style.display = 'none';
+                clearanceSection.style.display = 'block';
+                rulingSpanInfo.style.display = 'none';
+            } else {
+                singleSpanSection.style.display = 'none';
+                rulingSpanSection.style.display = 'block';
+                clearanceSection.style.display = 'none';
+                rulingSpanInfo.style.display = 'block';
+            }
+        }
+        
+        function toggleWindInput() {
+            const windInputGroup = document.getElementById('windInputGroup');
+            const enableWind = document.getElementById('enableWind').checked;
+            windInputGroup.style.display = enableWind ? 'block' : 'none';
+        }
+
+        function toggleCalcMethod() {
+            const method = document.querySelector('input[name="calculationMethod"]:checked').value;
+            const initialSection = document.getElementById('initialConditionSection');
+            const setTensionSection = document.getElementById('setTensionSection');
+            const utsSection = document.getElementById('utsSection');
+
+            initialSection.style.display = 'none';
+            setTensionSection.style.display = 'none';
+            utsSection.style.display = 'none';
+
+            if (method === 'initial') {
+                initialSection.style.display = 'block';
+            } else if (method === 'setTension') {
+                setTensionSection.style.display = 'block';
+            } else if (method === 'uts') {
+                utsSection.style.display = 'block';
+            }
+        }
+        
+        function toggleObstacleInputs() {
+            const container = document.getElementById('obstacleInputsContainer');
+            const isEnabled = document.getElementById('enableObstacleCheck').checked;
+            container.style.display = isEnabled ? 'block' : 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateInitialData();
+            document.getElementById('cableType').addEventListener('change', updateCableSpecs);
+            document.getElementById('bundleCount').addEventListener('change', updateCableSpecs);
+            document.getElementById('saveButton').addEventListener('click', saveConfiguration);
+            document.getElementById('printButton').addEventListener('click', generateReport);
+            
+            document.querySelectorAll('input[name="calcMode"]').forEach(radio => {
+                radio.addEventListener('change', toggleCalcMode);
+            });
+            
+            document.querySelectorAll('input[name="calculationMethod"]').forEach(radio => {
+                radio.addEventListener('change', toggleCalcMethod);
+            });
+
+            document.getElementById('enableObstacleCheck').addEventListener('change', toggleObstacleInputs);
+            
+            document.getElementById('enableWind').addEventListener('change', toggleWindInput);
+            
+            document.getElementById('addSpanBtn').addEventListener('click', () => {
+                const input = document.getElementById('newSpanInput');
+                const value = parseFloat(input.value);
+                if (!isNaN(value) && value > 0) {
+                    spans.push(value);
+                    input.value = '';
+                    renderSpanList();
+                    updateRulingSpanDisplay();
+                }
+                input.focus();
+            });
+
+            document.getElementById('clearSpansBtn').addEventListener('click', () => {
+                spans = [];
+                renderSpanList();
+                updateRulingSpanDisplay();
+            });
+
+            const toggleSpecsBtn = document.getElementById('toggle-specs-btn');
+            const collapsibleSpecs = document.getElementById('collapsible-specs');
+            toggleSpecsBtn.addEventListener('click', () => {
+                const isHidden = collapsibleSpecs.style.display === 'none';
+                collapsibleSpecs.style.display = isHidden ? 'block' : 'none';
+                toggleSpecsBtn.textContent = isHidden ? 'ซ่อน' : 'แสดงเพิ่มเติม';
+            });
+            const toggleResultsBtn = document.getElementById('toggle-results-btn');
+            const resultsDiv = document.getElementById('results');
+            toggleResultsBtn.addEventListener('click', () => {
+                const isHidden = resultsDiv.style.display === 'none';
+                resultsDiv.style.display = isHidden ? 'block' : 'none';
+                toggleResultsBtn.textContent = isHidden ? 'ซ่อน' : 'แสดงผลการคำนวณ';
+            });
+            
+            toggleCalcMode();
+            toggleWindInput();
+            toggleCalcMethod();
+            toggleObstacleInputs();
+        });
+    </script>
+</body>
+</html>
+
